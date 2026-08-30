@@ -1,0 +1,6 @@
+DISCLAIMER = "This is general legal information, not legal advice. Consult a licensed advocate for your specific situation."
+OUT_OF_SCOPE_MESSAGE = "I can only help with Indian legal terminology and general legal concepts. Please ask a legal question."
+RESPONSE_SCOPE_FALLBACK = "I wasn't able to generate a response within scope for that question. Please rephrase or ask a specific legal question."
+RATE_LIMIT_MESSAGE = "The assistant is temporarily busy, please try again in a moment"
+SESSION_LIMIT_MESSAGE = "This session has reached its request limit. Please try again later."
+CITATION_UNCERTAINTY_MESSAGE = "I cannot confidently verify the exact statute or section number for that situation. Please consult the current official text of the law or a licensed advocate."
