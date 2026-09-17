@@ -9,7 +9,10 @@ class ResponseScopeValidator:
     """Rule-based output drift detection. It is intentionally not an accuracy verifier."""
 
     DISALLOWED = (
-        r"```", r"\b(import |def |function |const |let |var |SELECT .+ FROM|console\.log)\b",
+        r"```",
+        # Match recognisable code syntax, not ordinary prose such as
+        # "Let me explain" or "the function of a court".
+        r"\b(?:import\s+[A-Za-z_]\w*|from\s+\S+\s+import\s+|def\s+\w+\s*\(|function\s+\w+\s*\(|(?:const|let|var)\s+\w+\s*=|select\s+.+\s+from|console\.log\s*\()",
         r"\b(under (?:us|u\.s\.|uk|united kingdom|california|texas|australian) law|california penal code|us constitution)\b",
         r"\b(diagnos[ei]|prescrib[ei]|dosage|take \d+ ?mg|medical advice)\b",
         r"\b(buy|sell|invest in|stock tip|financial advice|portfolio allocation)\b",

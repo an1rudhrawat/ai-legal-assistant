@@ -20,3 +20,9 @@ coverage/
 .idea/
 *.log
 Thumbs.db
+
+# Generated RAG artefacts (retain folder placeholders)
+data/processed/*
+!data/processed/.gitkeep
+data/vector_store/*
+!data/vector_store/.gitkeep

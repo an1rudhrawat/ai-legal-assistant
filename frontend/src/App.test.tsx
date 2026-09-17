@@ -18,11 +18,12 @@ describe("App", () => {
   });
 
   it("displays a successful response", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", refused: false, rate_limited: false }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", refused: false, rate_limited: false, citations: [{ source_name: "BNSS", section: "173", source_url: "https://www.indiacode.nic.in/", document_version: "2023" }] }) }));
     render(<App />);
     fireEvent.change(screen.getByLabelText(/your question/i), { target: { value: "What is an FIR?" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByText("An FIR is a police record.")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Sources" })).toBeInTheDocument();
   });
 
   it("enables the microphone control when SpeechRecognition is available", () => {
@@ -38,10 +39,10 @@ describe("App", () => {
   });
 
   it("displays a legal refusal returned by the backend", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "I can only help with Indian legal terminology.", refused: true, rate_limited: false }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "I can only help with Indian legal information.", refused: true, rate_limited: false }) }));
     render(<App />);
     fireEvent.change(screen.getByLabelText(/your question/i), { target: { value: "Tell me a joke" } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-    await waitFor(() => expect(screen.getByText(/I can only help with Indian legal terminology/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/I can only help with Indian legal information/i)).toBeInTheDocument());
   });
 });

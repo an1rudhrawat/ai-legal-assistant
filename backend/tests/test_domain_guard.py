@@ -18,8 +18,30 @@ def test_allows_legal_terminology_and_concepts(guard, query):
 
 
 @pytest.mark.parametrize("query", [
+    "I broke into my neighbour's house to take my phone back when he was not there.",
+    "My neighbour entered my house without permission.",
+    "Someone took my phone and won't return it.",
+    "The police stopped me and asked me for money without giving me a receipt.",
+    "The police won't register my complaint.",
+    "I was stopped by police and they are asking me to sign something.",
+    "My landlord changed the locks while I was away.",
+    "My employer hasn't paid me for three months.",
+    "Someone is threatening me over WhatsApp.",
+    "Someone is blackmailing me.",
+    "Someone hit me during an argument.",
+    "Someone damaged my property.",
+    "I received a notice from the court.",
+    "I received a letter saying I need to appear in court.",
+    "Someone took my documents without permission.",
+])
+def test_allows_concrete_situations_without_legal_terminology(guard, query):
+    assert guard.evaluate(query).allowed
+
+
+@pytest.mark.parametrize("query", [
     "Write Python code to sort a list", "Give me a pasta recipe", "Who won the cricket match?",
-    "What is tomorrow's weather?", "Which crypto should I buy?",
+    "What is tomorrow's weather?", "Which crypto should I buy?", "Explain quantum mechanics.",
+    "Write me a poem.", "Help me debug my Java code.",
 ])
 def test_rejects_clearly_non_legal_queries(guard, query):
     assert not guard.evaluate(query).allowed

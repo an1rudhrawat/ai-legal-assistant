@@ -1,8 +1,14 @@
 # Scope and safety
 
-The assistant is limited to **Indian legal terminology and general legal concepts**. It does not claim to understand all Indian law and does not provide personalised legal advice.
+## First-responder safeguards
 
-The server evaluates every input before an LLM call. The deterministic guard combines curated Indian legal phrases, legal terms, question-intent patterns, explicit non-legal patterns, and a conservative score threshold. Non-legal, ambiguous, mixed-topic, and jailbreak/role-play requests receive a fixed refusal and do not consume an LLM request.
+The product is a legal information and triage assistant, not a lawyer or legal representative. It supports situation-based questions only when authoritative retrieved material is sufficient. Legal facts, provisions, procedures, deadlines, and citations must come from retrieved context; an LLM citation not matching a retrieved chunk is rejected.
+
+Immediate-danger wording is handled before retrieval with a concise safety-first prompt to contact appropriate local emergency, police, or medical services. The application does not invent emergency numbers, determine a user's legal position from incomplete facts, or call the LLM when available authoritative evidence is insufficient.
+
+The assistant supports Indian legal terminology, general legal concepts, and plausible first-responder situations described in ordinary language. The domain guard decides only whether a situation may need legal information; it does not decide that an offence occurred or determine a user's legal position. It does not claim to understand all Indian law and does not provide personalised legal advice.
+
+The server evaluates every input before an LLM call. The deterministic guard combines explicit legal terms, structured institutional interactions, concrete dispute or harmful-event descriptions, and rights/procedure language. Explicit non-legal, mixed-topic, and jailbreak/role-play requests receive a fixed refusal and do not consume an LLM request. A vague request without legal context remains out of scope.
 
 The LLM system prompt reinforces this boundary and requires a confident refusal when it cannot verify statute sections, amendments, or case citations. The application independently appends the disclaimer to all returned text; it never trusts the model alone to preserve it.
 

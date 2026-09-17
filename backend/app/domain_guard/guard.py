@@ -12,11 +12,18 @@ class GuardDecision:
 
 
 class LegalDomainGuard:
-    """Conservative deterministic classifier for the deliberately narrow Phase 1 scope."""
+    """Identify plausible Indian legal questions without making legal findings.
+
+    A first responder must accept a concrete account of a possible dispute or
+    harmful act even when the person does not know its legal name.  This guard
+    is intentionally a relevance screen, not an offence classifier.
+    """
 
     LEGAL_PHRASES = {
         "first information report": 5, "anticipatory bail": 5, "writ petition": 5,
         "police complaint": 4, "legal notice": 4, "court summons": 4,
+        "taken my documents": 4, "threatening me online": 5, "received a summons": 5,
+        "immediate danger": 5, "ongoing violence": 5, "threat to my life": 5,
         "consumer complaint": 4, "maintenance claim": 4, "right to information": 4,
         "fundamental rights": 4, "criminal procedure": 4, "civil procedure": 4,
         "property dispute": 4, "domestic violence": 4, "cyber crime": 4,
@@ -34,6 +41,8 @@ class LegalDomainGuard:
         "will": 3, "property": 2, "cheque": 2, "fraud": 3, "theft": 3,
         "harassment": 3, "complaint": 2, "complainant": 3, "accused": 3,
         "evidence": 3, "remand": 4, "charge sheet": 4, "chargesheet": 4,
+        "threat": 3, "threatening": 3, "detained": 4, "notice": 3,
+        "documents": 2, "passport": 3, "blackmail": 4,
         "india": 1, "indian": 1,
     }
     LEGAL_INTENTS = (
@@ -41,6 +50,35 @@ class LegalDomainGuard:
         r"\bhow (do|can|does|to)\b.{0,60}\b(file|apply|appeal|complain|seek)\b",
         r"\b(can|may|do) i\b.{0,60}\b(right|file|claim|sue|complain)\b",
         r"\bprocedure\b", r"\bpenalty\b", r"\bpunishment\b",
+    )
+    # These patterns identify a person's interaction with a legal institution.
+    # An actor name by itself is not enough: the pattern requires a procedural
+    # event so ordinary mentions of (for example) a police officer do not pass.
+    INSTITUTIONAL_SITUATION_PATTERNS = (
+        r"\bpolice\b.{0,80}\b(stop(?:ped)?|ask(?:ed|ing)?|refus(?:e|ed|ing)|register|sign|search(?:ed|ing)?|detain(?:ed|ing)?|seiz(?:e|ed|ing)|pay|receipt)\b",
+        r"\b(stop(?:ped)?|ask(?:ed|ing)?|refus(?:e|ed|ing)|register|sign|search(?:ed|ing)?|detain(?:ed|ing)?|seiz(?:e|ed|ing))\b.{0,80}\bpolice\b",
+        r"\b(?:court|judge|magistrate)\b.{0,80}\b(notice|letter|appear|hearing|summons|warrant)\b",
+        r"\b(?:notice|letter|summons)\b.{0,80}\b(?:court|judge|magistrate)\b",
+        r"\blandlord\b.{0,80}\b(change(?:d)? the locks|lock(?:ed)? out|evict(?:ed|ion)?|remove(?:d)? me)\b",
+        r"\bemployer\b.{0,80}\b(?:has not|hasn't|have not|haven't|won't|refus(?:es|ed) to)\b.{0,40}\b(?:pay|paid|salary|wages?)\b",
+    )
+    # These are descriptions of a concrete event, not a list of legal labels.
+    # They only establish that the person may need legal information.
+    CONCRETE_SITUATION_PATTERNS = (
+        r"\b(?:i|someone|(?:my )?(?:neighbou?r|friend|partner|employer|landlord)|he|she|they)\b.{0,40}\bbroke into\b.{0,60}\b(?:house|home|flat|property)\b",
+        r"\b(?:someone|(?:my )?neighbou?r|he|she|they)\b.{0,30}\b(?:entered|came into)\b.{0,40}\b(?:my )?(?:house|home|flat|property)\b.{0,50}\bwithout permission\b",
+        r"\b(?:someone|(?:my )?(?:neighbou?r|friend)|he|she|they)\b.{0,30}\b(?:took|stole|kept)\b.{0,30}\b(?:my|our)\b",
+        r"\b(?:won't|will not|refuses? to|refused to)\s+return\b",
+        r"\b(?:someone|(?:my )?(?:neighbou?r|friend)|he|she|they|i)\b.{0,30}\b(?:hit|assaulted|hurt|damaged|destroyed)\b.{0,50}\b(?:me|my|our|someone|property)\b",
+        r"\b(?:someone|(?:my )?(?:neighbou?r|friend)|he|she|they)\b.{0,30}\btook\b.{0,30}\b(?:my|our)\s+(?:documents?|passport|id(?:entity)?|certificate)\b",
+        r"\b(?:someone|(?:my )?(?:neighbou?r|friend)|he|she|they)\b.{0,30}\b(?:threaten(?:ed|ing)?|blackmail(?:ed|ing)?)\b",
+        r"\b(?:i|someone)\b.{0,30}\b(?:damaged|broke|destroyed)\b.{0,50}\bproperty\b",
+    )
+    RIGHTS_OR_PROCEDURE_PATTERNS = (
+        r"\bwhat (?:can|should) i do\b", r"\bwhat are my rights\b",
+        r"\bcan (?:they|i) do this\b", r"\bam i allowed to\b",
+        r"\bwhat happens next\b", r"\bwhere can i complain\b",
+        r"\bwho should i contact\b", r"\bwhat should i do now\b",
     )
     NON_LEGAL_PATTERNS = (
         r"\b(write|debug|fix|generate)\b.{0,40}\b(code|python|javascript|sql|html|css|program)\b",
@@ -64,9 +102,16 @@ class LegalDomainGuard:
         if non_legal:
             return GuardDecision(False, 0, "explicit non-legal or bypass pattern")
 
-        score = sum(weight for phrase, weight in self.LEGAL_PHRASES.items() if phrase in text)
-        score += sum(weight for term, weight in self.LEGAL_TERMS.items() if self._contains_term(text, term))
+        explicit_score = sum(weight for phrase, weight in self.LEGAL_PHRASES.items() if phrase in text)
+        explicit_score += sum(weight for term, weight in self.LEGAL_TERMS.items() if self._contains_term(text, term))
         has_intent = any(re.search(pattern, text) for pattern in self.LEGAL_INTENTS)
-        if score >= 3 and (has_intent or len(text.split()) <= 18):
-            return GuardDecision(True, score, "legal terminology or concept")
-        return GuardDecision(False, score, "insufficient legal context")
+        institutional = any(re.search(pattern, text) for pattern in self.INSTITUTIONAL_SITUATION_PATTERNS)
+        concrete = any(re.search(pattern, text) for pattern in self.CONCRETE_SITUATION_PATTERNS)
+        rights_or_procedure = any(re.search(pattern, text) for pattern in self.RIGHTS_OR_PROCEDURE_PATTERNS)
+
+        if explicit_score >= 3:
+            return GuardDecision(True, explicit_score, "explicit legal terminology or concept")
+        if institutional or concrete:
+            score = 3 + int(rights_or_procedure)
+            return GuardDecision(True, score, "plausible legal situation")
+        return GuardDecision(False, explicit_score, "insufficient legal context")

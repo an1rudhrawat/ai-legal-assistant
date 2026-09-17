@@ -5,3 +5,5 @@ form, .answer { background: white; padding: 1.25rem; border-radius: 8px; box-sha
 label, textarea { display: block; width: 100%; } textarea { box-sizing: border-box; margin: .5rem 0 1rem; font: inherit; padding: .75rem; }
 .actions { display: flex; gap: .75rem; } button { padding: .65rem 1rem; cursor: pointer; } .answer { margin-top: 1.25rem; white-space: pre-wrap; }
 .error { color: #a11; } .hint { color: #4b5563; font-size: .9rem; }
+.urgency { background: #fce4e4; border-left: 4px solid #b42318; padding: .75rem; font-weight: 600; }
+.sources { border-top: 1px solid #d7dce7; margin-top: 1rem; padding-top: .75rem; }.sources h3 { margin: 0; }.sources ul { margin-bottom: 0; }

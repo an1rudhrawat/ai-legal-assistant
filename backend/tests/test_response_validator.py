@@ -5,8 +5,17 @@ def test_accepts_legal_output():
     assert ResponseScopeValidator().validate("An FIR is a record made by police about a cognizable offence.")[0]
 
 
+def test_accepts_ordinary_explanatory_legal_prose():
+    response = "Let me explain: an FIR is information recorded by police about a cognizable offence."
+    assert ResponseScopeValidator().validate(response)[0]
+
+
 def test_rejects_code_output():
     assert not ResponseScopeValidator().validate("For legal help run ```python\nprint('hello')\n```")[0]
+
+
+def test_rejects_unfenced_code_output():
+    assert not ResponseScopeValidator().validate("const complaint = 'FIR';")[0]
 
 
 def test_rejects_foreign_law_as_controlling():
