@@ -20,6 +20,7 @@ class ChatResponse(BaseModel):
     urgency: str | None = None
     issue_categories: list[str] = Field(default_factory=list)
     citations: list[Citation] = Field(default_factory=list)
+    domain_label: str | None = None
 
 
 class HealthResponse(BaseModel):

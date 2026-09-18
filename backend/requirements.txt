@@ -5,3 +5,7 @@ pytest>=8.0,<9.0
 pytest-asyncio>=0.23,<1.0
 python-dotenv>=1.0,<2.0
 pypdf>=5.0,<7.0
+sentence-transformers>=3.0,<7.0
+scikit-learn>=1.5,<2.0
+joblib>=1.4,<2.0
+rank-bm25>=0.2,<1.0

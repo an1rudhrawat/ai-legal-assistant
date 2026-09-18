@@ -20,6 +20,13 @@ class Settings:
     retrieval_raw_path: Path = Path("data/raw")
     retrieval_processed_path: Path = Path("data/processed")
     retrieval_minimum_relevance: float = 0.12
+    embedding_model: str = "all-MiniLM-L6-v2"
+    enable_dense_retrieval: bool = True
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    enable_reranker: bool = False
+    domain_classifier_model_path: Path = Path("data/domain_classifier/model")
+    domain_legal_threshold: float = 0.70
+    domain_non_legal_threshold: float = 0.35
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -36,6 +43,7 @@ class Settings:
         index_path = index_setting if index_setting.is_absolute() else project_root / index_setting
         raw_setting = Path(os.getenv("RETRIEVAL_RAW_PATH", "data/raw"))
         processed_setting = Path(os.getenv("RETRIEVAL_PROCESSED_PATH", "data/processed"))
+        classifier_setting = Path(os.getenv("DOMAIN_CLASSIFIER_MODEL_PATH", "data/domain_classifier/model"))
         return cls(
             llm_provider=os.getenv("LLM_PROVIDER", "groq").lower(),
             llm_model=os.getenv("LLM_MODEL", "openai/gpt-oss-20b"),
@@ -48,4 +56,11 @@ class Settings:
             retrieval_raw_path=raw_setting if raw_setting.is_absolute() else project_root / raw_setting,
             retrieval_processed_path=processed_setting if processed_setting.is_absolute() else project_root / processed_setting,
             retrieval_minimum_relevance=float(os.getenv("RETRIEVAL_MINIMUM_RELEVANCE", "0.12")),
+            embedding_model=os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+            enable_dense_retrieval=os.getenv("ENABLE_DENSE_RETRIEVAL", "true").lower() == "true",
+            reranker_model=os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+            enable_reranker=os.getenv("ENABLE_RERANKER", "false").lower() == "true",
+            domain_classifier_model_path=classifier_setting if classifier_setting.is_absolute() else project_root / classifier_setting,
+            domain_legal_threshold=float(os.getenv("DOMAIN_LEGAL_THRESHOLD", "0.70")),
+            domain_non_legal_threshold=float(os.getenv("DOMAIN_NON_LEGAL_THRESHOLD", "0.35")),
         )

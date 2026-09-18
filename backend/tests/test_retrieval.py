@@ -1,6 +1,7 @@
 import json
 
 from app.retrieval.embeddings import embed
+from app.retrieval.bm25 import BM25Retriever
 from app.retrieval.retriever import LegalRetriever
 
 
@@ -15,7 +16,7 @@ def make_index(tmp_path):
 
 
 def test_situation_query_retrieves_relevant_material_and_provenance(tmp_path):
-    result = LegalRetriever(make_index(tmp_path)).search("The police will not register my FIR")
+    result = LegalRetriever(make_index(tmp_path), enable_dense=False).search("The police will not register my FIR")
     assert result.sufficient
     assert result.chunks[0].section_number == "173"
     assert result.chunks[0].issuing_authority == "Government of India"
@@ -23,18 +24,29 @@ def test_situation_query_retrieves_relevant_material_and_provenance(tmp_path):
 
 
 def test_terminology_query_retrieves_material(tmp_path):
-    result = LegalRetriever(make_index(tmp_path)).search("What is a first information report?")
+    result = LegalRetriever(make_index(tmp_path), enable_dense=False).search("What is a first information report?")
     assert result.sufficient
     assert result.chunks[0].chunk_id == "fir-1"
 
 
 def test_irrelevant_query_has_insufficient_evidence(tmp_path):
-    result = LegalRetriever(make_index(tmp_path), minimum_relevance=0.2).search("pasta recipe ingredients")
+    result = LegalRetriever(make_index(tmp_path), minimum_relevance=0.2, enable_dense=False).search("pasta recipe ingredients")
     assert not result.sufficient
     assert result.chunks == ()
 
 
 def test_relevance_threshold_is_applied(tmp_path):
     index = make_index(tmp_path)
-    assert LegalRetriever(index, minimum_relevance=0.01).search("police FIR").sufficient
-    assert not LegalRetriever(index, minimum_relevance=0.99).search("police FIR").sufficient
+    assert LegalRetriever(index, minimum_relevance=0.01, enable_dense=False).search("police FIR").sufficient
+    assert not LegalRetriever(index, minimum_relevance=0.99, enable_dense=False).search("police FIR").sufficient
+
+
+def test_bm25_scores_exact_statutory_terms():
+    scores = BM25Retriever(["police receive a first information report", "landlord tenant eviction", "court procedure notice"]).scores("first information report")
+    assert scores[0] > scores[1]
+
+
+def test_rrf_promotes_documents_found_by_multiple_retrievers():
+    fused = LegalRetriever._rrf([[0, 1, 2], [1, 0, 3]])
+    assert fused[0] > fused[2]
+    assert fused[1] > fused[3]

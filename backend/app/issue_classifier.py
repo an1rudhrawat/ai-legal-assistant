@@ -22,7 +22,7 @@ class LegalIssueClassifier:
         "documents_identity": r"\b(document|certificate|passport|id|identity)\b",
         "harassment_threats": r"\b(threat|threatening|harass|violence|abuse)\b",
     }
-    EMERGENCY_PATTERN = r"\b(immediate danger|attack(?:ed|ing)?|threat(?:en)?(?:ing)? (?:to )?(?:kill|life)|ongoing violence|need emergency|child in danger)\b"
+    EMERGENCY_PATTERN = r"\b(immediate danger|ongoing attack|being attacked|attack in progress|threat(?:en)?(?:ing)? (?:to )?(?:kill|life)|ongoing violence|need emergency|child in danger)\b"
     URGENT_PATTERN = r"\b(arrested|detained|evict(?:ed|ion)? tomorrow|destroy(?:ing|ed) evidence|deadline today|summons)\b"
 
     def assess(self, message: str) -> IssueAssessment:

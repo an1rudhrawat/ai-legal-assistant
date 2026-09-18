@@ -6,6 +6,7 @@ from app.core.constants import (
     RESPONSE_SCOPE_FALLBACK,
 )
 from app.llm.base import ProviderRateLimitError
+from app.domain_guard.classifier import DomainClassification
 
 
 def payload(message: str, session_id: str = "test-session-123") -> dict:
@@ -40,6 +41,13 @@ def test_situation_based_request_reaches_legal_pipeline(client, provider):
     assert response.status_code == 200
     assert response.json()["refused"] is False
     assert provider.calls == 1
+
+
+def test_ambiguous_fact_free_request_asks_for_context(client, provider):
+    client.app.state.domain_classifier.classify = lambda _: DomainClassification("ambiguous", 0.5, 0.5, "test")
+    response = client.post("/api/chat", json=payload("What should I do?", "ambiguous-session"))
+    assert "Please describe what happened" in response.json()["response"]
+    assert provider.calls == 0
 
 
 def test_validator_replaces_invalid_provider_output(client, provider):

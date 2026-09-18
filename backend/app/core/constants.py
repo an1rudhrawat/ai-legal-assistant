@@ -5,4 +5,5 @@ RATE_LIMIT_MESSAGE = "The assistant is temporarily busy, please try again in a m
 SESSION_LIMIT_MESSAGE = "This session has reached its request limit. Please try again later."
 CITATION_UNCERTAINTY_MESSAGE = "I cannot confidently verify the exact statute or section number for that situation. Please consult the current official text of the law or a licensed advocate."
 INSUFFICIENT_EVIDENCE_MESSAGE = "I don't have sufficient authoritative material in the available legal sources to answer this reliably. Please consult a licensed advocate or the relevant official authority."
+AMBIGUOUS_SITUATION_MESSAGE = "Please describe what happened, who was involved, and what action you are currently being asked to take. I can then check whether relevant legal information is available."
 EMERGENCY_MESSAGE = "Your immediate safety appears to be the priority. If there is immediate danger, contact the appropriate local emergency, police, or medical service now and move to a safer place if you can. I cannot assess the danger from here."

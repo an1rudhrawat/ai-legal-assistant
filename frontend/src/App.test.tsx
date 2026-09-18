@@ -45,4 +45,24 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => expect(screen.getByText(/I can only help with Indian legal information/i)).toBeInTheDocument());
   });
+
+  it("submits with Enter and keeps Shift+Enter available for a newline", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", refused: false, rate_limited: false }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    const input = screen.getByLabelText(/your question/i);
+    fireEvent.change(input, { target: { value: "What is an FIR?" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops browser speech on request", () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("speechSynthesis", { cancel, speak: vi.fn() });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /stop speaking/i }));
+    expect(cancel).toHaveBeenCalledOnce();
+  });
 });

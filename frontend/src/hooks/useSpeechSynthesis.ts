@@ -5,3 +5,8 @@ export function speak(text: string) {
   utterance.lang = "en-IN";
   window.speechSynthesis.speak(utterance);
 }
+
+export function stopSpeaking() {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+}

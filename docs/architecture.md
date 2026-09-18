@@ -1,5 +1,15 @@
 # Architecture
 
+## Current semantic first-responder pipeline
+
+```text
+User → local semantic domain classifier → situation understanding → query expansion
+→ local dense retrieval + BM25 → reciprocal-rank fusion → optional local cross-encoder
+→ evidence threshold → grounded LLM → citation/output validation → disclaimer
+```
+
+The classifier uses local `all-MiniLM-L6-v2` embeddings and a persisted Logistic Regression model to identify a potentially legal situation without determining an offence. A deterministic gate rejects only obvious unrelated or bypass content. Ambiguous questions may retrieve evidence; if none is available, the system asks for facts instead of inventing a legal scenario. The retriever keeps source/section provenance, combines local dense and BM25 ranks through RRF, and can use an optional local reranker. The LLM provider remains modular; no hosted classification, embedding, or reranking API is used.
+
 ## Legal First Responder retrieval flow
 
 ```text

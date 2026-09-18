@@ -26,3 +26,7 @@ data/processed/*
 !data/processed/.gitkeep
 data/vector_store/*
 !data/vector_store/.gitkeep
+
+# Locally trained/downloaded ML artefacts
+data/domain_classifier/model/*
+!data/domain_classifier/model/.gitkeep

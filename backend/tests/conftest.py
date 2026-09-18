@@ -3,6 +3,7 @@ from app.retrieval.embeddings import embed
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.domain_guard.classifier import DomainClassification
 from app.llm.base import LLMProvider
 from app.main import create_app
 
@@ -15,6 +16,12 @@ class FakeProvider(LLMProvider):
     async def generate(self, *, system_prompt: str, user_message: str) -> str:
         self.calls += 1
         return self.response
+
+
+class AlwaysLegalClassifier:
+    """API tests cover the downstream contract without requiring ML artefacts."""
+    def classify(self, text: str) -> DomainClassification:
+        return DomainClassification("legal", 0.9, 0.9, "test semantic classification")
 
 
 @pytest.fixture
@@ -39,4 +46,8 @@ def retrieval_index(tmp_path):
 def client(provider: FakeProvider, retrieval_index) -> TestClient:
     app = create_app(Settings(groq_api_key="test", session_request_limit=3, retrieval_index_path=retrieval_index))
     app.state.service.provider = provider
+    app.state.domain_classifier = AlwaysLegalClassifier()
+    # Dense-model behavior has dedicated unit coverage; API contract tests stay
+    # deterministic and do not load a large local model for every fixture.
+    app.state.service.retriever._dense_load_attempted = True
     return TestClient(app)

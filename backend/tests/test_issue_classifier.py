@@ -19,3 +19,7 @@ def test_immediate_danger_is_an_emergency():
     assessment = LegalIssueClassifier().assess("There is ongoing violence and I am in immediate danger")
     assert assessment.emergency
     assert assessment.urgent
+
+
+def test_past_altercation_is_not_automatically_an_emergency():
+    assert not LegalIssueClassifier().assess("My neighbour attacked me yesterday and I hit him.").emergency

@@ -1,6 +1,6 @@
 # AI Legal Assistant — Phase 1
 
-A final-year project prototype for Indian citizens: a voice-enabled assistant for **Indian legal terminology and general legal concepts**. It is not a substitute for a lawyer and does not claim to understand all Indian law.
+A final-year project prototype for Indian citizens: a voice-enabled assistant for Indian legal terminology and ordinary-language first-responder situations. It is not a substitute for a lawyer and does not claim to understand all Indian law.
 
 ## Architecture
 
@@ -26,6 +26,15 @@ cd backend
 ```
 
 If the local index is missing or the match is below `RETRIEVAL_MINIMUM_RELEVANCE`, the system returns an insufficient-evidence response without calling the LLM.
+
+## Train the local domain classifier
+
+The local classifier detects a plausibly legal situation from semantic meaning; it does not decide an offence or legal liability. It uses `all-MiniLM-L6-v2` embeddings plus Logistic Regression, trained from the versioned seed dataset in `data/domain_classifier/`. Generated model files are not committed.
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe scripts\train_domain_classifier.py --allow-download
+```
 
 ## Setup
 

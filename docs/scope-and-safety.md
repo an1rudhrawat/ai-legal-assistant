@@ -8,7 +8,7 @@ Immediate-danger wording is handled before retrieval with a concise safety-first
 
 The assistant supports Indian legal terminology, general legal concepts, and plausible first-responder situations described in ordinary language. The domain guard decides only whether a situation may need legal information; it does not decide that an offence occurred or determine a user's legal position. It does not claim to understand all Indian law and does not provide personalised legal advice.
 
-The server evaluates every input before an LLM call. The deterministic guard combines explicit legal terms, structured institutional interactions, concrete dispute or harmful-event descriptions, and rights/procedure language. Explicit non-legal, mixed-topic, and jailbreak/role-play requests receive a fixed refusal and do not consume an LLM request. A vague request without legal context remains out of scope.
+The server evaluates every input before an LLM call. A local semantic classifier distinguishes legal, non-legal, and ambiguous situations using a locally stored model; it does not decide that an offence occurred. A small deterministic gate rejects only obvious unrelated or bypass content. Ambiguous requests are asked for facts when retrieval cannot establish relevant authoritative evidence. Explicit non-legal, mixed-topic, and jailbreak/role-play requests receive a fixed refusal and do not consume an LLM request.
 
 The LLM system prompt reinforces this boundary and requires a confident refusal when it cannot verify statute sections, amendments, or case citations. The application independently appends the disclaimer to all returned text; it never trusts the model alone to preserve it.
 
