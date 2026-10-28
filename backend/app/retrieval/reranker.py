@@ -13,7 +13,12 @@ class LocalCrossEncoderReranker:
         self._model = None
         self._load_attempted = False
 
-    def rerank(self, query: str, candidates: list[tuple[float, str]]) -> list[tuple[float, str]]:
+    def rerank(self, query: str, candidates: list[tuple[float, int, str]]) -> list[tuple[float, int, str]]:
+        """Rerank candidates while retaining their index in the local index.
+
+        The text is not a stable identifier: two sections from different sources
+        can legitimately contain the same wording.
+        """
         if not self.enabled or not candidates:
             return candidates
         if not self._load_attempted:
@@ -25,5 +30,9 @@ class LocalCrossEncoderReranker:
                 logger.warning("Local reranker unavailable; using rank-fusion order")
         if self._model is None:
             return candidates
-        scores = self._model.predict([(query, text) for _, text in candidates])
-        return sorted(((float(score), text) for score, (_, text) in zip(scores, candidates)), reverse=True)
+        scores = self._model.predict([(query, text) for _, _, text in candidates])
+        return sorted(
+            ((float(score), index, text) for score, (_, index, text) in zip(scores, candidates)),
+            key=lambda candidate: candidate[0],
+            reverse=True,
+        )

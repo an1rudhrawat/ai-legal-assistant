@@ -1,20 +1,37 @@
+from typing import Sequence
+
 import pytest
+
 from app.retrieval.embeddings import embed
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.domain_guard.classifier import DomainClassification
-from app.llm.base import LLMProvider
+from app.llm.base import ChatMessage, LLMProvider
 from app.main import create_app
 
 
 class FakeProvider(LLMProvider):
-    def __init__(self, response: str = "An FIR is a police record of information about a cognizable offence.") -> None:
+    def __init__(self, response: str = "An FIR is a police record of information about a cognizable offence. [bnss-fir-1]") -> None:
         self.response = response
         self.calls = 0
+        self.last_system_prompt = ""
+        self.last_user_message = ""
+        self.last_history: list[ChatMessage] = []
 
-    async def generate(self, *, system_prompt: str, user_message: str) -> str:
+    async def generate(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        history: Sequence[ChatMessage] = (),
+    ) -> str:
         self.calls += 1
+        self.last_system_prompt = system_prompt
+        self.last_user_message = user_message
+        self.last_history = list(history)
+        if "Create a concise continuity summary" in system_prompt:
+            return "The user reports an unresolved legal situation; details are unverified."
         return self.response
 
 
@@ -43,8 +60,14 @@ def retrieval_index(tmp_path):
 
 
 @pytest.fixture
-def client(provider: FakeProvider, retrieval_index) -> TestClient:
-    app = create_app(Settings(groq_api_key="test", session_request_limit=3, retrieval_index_path=retrieval_index))
+def client(provider: FakeProvider, retrieval_index, tmp_path) -> TestClient:
+    app = create_app(Settings(
+        groq_api_key="test",
+        session_request_limit=3,
+        retrieval_minimum_relevance=0.12,
+        retrieval_index_path=retrieval_index,
+        conversation_database_path=tmp_path / "conversations.sqlite3",
+    ))
     app.state.service.provider = provider
     app.state.domain_classifier = AlwaysLegalClassifier()
     # Dense-model behavior has dedicated unit coverage; API contract tests stay

@@ -1,75 +1,80 @@
-# AI Legal Assistant — Phase 1
+# Aadhikar AI Legal Assistant
 
-A final-year project prototype for Indian citizens: a voice-enabled assistant for Indian legal terminology and ordinary-language first-responder situations. It is not a substitute for a lawyer and does not claim to understand all Indian law.
+Aadhikar is a prototype that helps people ask ordinary-language questions about Indian legal information. It combines a React chat interface, a FastAPI backend, a local legal-document search index, and a Groq-hosted language model. Browser speech features are optional; typed chat is always available.
 
-## Architecture
+It is an information and triage prototype, not a lawyer. It can answer only when its local corpus contains useful material, and it does not establish that a law applies to a user's facts.
 
-`Browser microphone → SpeechRecognition → server legal guard → LLM → response scope validator → SpeechSynthesis`
+## Start the project
 
-The React frontend uses browser speech where available and always provides typed input. The FastAPI backend keeps the LLM key private, runs deterministic request and response safety checks, enforces a disclaimer, and exposes `POST /api/chat` plus `GET /health`. There is no RAG, database, authentication, or audio storage in Phase 1. See [architecture](docs/architecture.md) and [scope and safety](docs/scope-and-safety.md).
+Requirements: Python 3.11 or newer and Node.js 20 or newer. The backend needs a Groq API key for generated answers.
 
-## Legal First Responder update
+1. In PowerShell, prepare the backend:
 
-This project now supports grounded first-responder legal information as well as terminology. Its flow is scope check, urgency assessment, issue classification, authoritative-source retrieval, grounded LLM response, citation validation, output validation, and disclaimer. It is not a lawyer or legal representative.
+   ```powershell
+   cd backend
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -r requirements.txt
+   Copy-Item .env.example .env
+   ```
 
-Source metadata is preserved per chunk (document, Act, type, section, chapter, source URL, authority, version, dates, and ingestion time). The frontend displays returned sources separately, and speech output reads only the response text.
+2. Edit `backend/.env` and set `GROQ_API_KEY`. The production provider is Groq; Ollama/Qwen scripts are for evaluation only.
 
-## Ingest authoritative material
+3. Build the local index from the documents currently in `data/raw`:
 
-Only add official legislation, government material, or authoritative court material under `data/raw`; do not add blogs or unsourced summaries. See `data/raw/README.md` for required provenance metadata.
+   ```powershell
+   python -m app.retrieval.sync
+   ```
 
-Add authoritative sources to `data/raw`. A PDF, TXT, Markdown, or self-contained JSON file is enough; optional companion metadata improves citation provenance. At backend startup and before normal chat requests, the corpus is synchronized automatically: new and modified sources are chunked, unchanged sources retain their existing chunks, and the index is rebuilt from all active chunks only when the corpus changes. To sync manually:
+4. Train the local legal-domain classifier if its model files are not present. The first run may download the embedding model:
+
+   ```powershell
+   python scripts\train_domain_classifier.py --allow-download
+   ```
+
+5. Start the backend from the `backend` directory:
+
+   ```powershell
+   uvicorn app.main:app --reload
+   ```
+
+6. In a second terminal, start the frontend:
+
+   ```powershell
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+Open the local address printed by Vite (usually `http://localhost:5173`). The backend API documentation is at `http://localhost:8000/docs`.
+
+## How it works
+
+```text
+Browser chat or speech transcript → FastAPI safety checks → local legal retrieval
+→ Groq answer grounded in retrieved text → citation and response checks → browser
+```
+
+The app stores conversation turns in local SQLite and uses recent context to interpret follow-up questions. Legal documents, embeddings, and retrieval run locally. The current corpus is intentionally limited; when relevant evidence is missing, the assistant abstains. Read [the project guide](docs/project-guide.md) for setup, configuration, APIs, corpus management, evaluation, and troubleshooting.
+
+## Documentation
+
+- [Project guide](docs/project-guide.md): setup, configuration, API, corpus, testing, evaluation, and troubleshooting.
+- [Architecture](docs/architecture.md): request flow and component responsibilities.
+- [Scope and safety](docs/scope-and-safety.md): intended use and important limitations.
+- [Test plan](docs/test-plan.md): automated coverage and what it does not verify.
+- [Domain-classifier evaluation](docs/domain-classifier-evaluation.md): local classifier design and recorded evaluation limits.
+- [Corpus source instructions](data/raw/README.md): accepted source files and provenance metadata.
+
+## Run the automated checks
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -m app.retrieval.sync
-```
-
-If the local index is missing or the match is below `RETRIEVAL_MINIMUM_RELEVANCE`, the system returns an insufficient-evidence response without calling the LLM.
-
-## Train the local domain classifier
-
-The local classifier detects a plausibly legal situation from semantic meaning; it does not decide an offence or legal liability. It uses `all-MiniLM-L6-v2` embeddings plus Logistic Regression, trained from the versioned seed dataset in `data/domain_classifier/`. Generated model files are not committed.
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe scripts\train_domain_classifier.py --allow-download
-```
-
-## Setup
-
-Requirements: Python 3.11+ and Node.js 20+ (for the frontend). Browser speech recognition is not universal; unsupported browsers can use the typed input fallback.
-
-Copy `backend/.env.example` to `backend/.env` and set a free-tier provider key. The default adapter expects `GROQ_API_KEY`. Never add this key to the frontend or commit `.env` files.
-
-## Run the backend
-
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-## Run the frontend
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Set `VITE_API_BASE_URL` in `frontend/.env` only if the backend is not at `http://localhost:8000`.
-
-## Run tests
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m pytest
+python -m pytest
 
 cd ..\frontend
 npm test
+npm run build
 ```
 
-Tests mock the LLM provider and do not use API quota. The suite includes legal-only guard cases, adversarial attempts, response validation, rate-limit handling, citation hedging, typed input fallback, refusal rendering, and the disclaimer banner. See [test plan](docs/test-plan.md).
+The automated tests use mocked providers. They do not call Groq or Ollama and do not establish legal correctness.

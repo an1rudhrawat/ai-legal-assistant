@@ -62,3 +62,25 @@ def test_sync_ignores_the_raw_directory_readme(tmp_path):
 
     assert result.added == 1
     assert result.indexed_chunks == 1
+
+
+def test_sync_reingests_sources_created_by_an_older_pipeline_version(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_source(raw / "act.json", "test-act", "1. Short title\nAn authoritative rule.")
+    processed, index = tmp_path / "processed", tmp_path / "index.json"
+    sync_corpus(raw, processed, index)
+
+    manifest_path = processed / ".rag_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["act.json"].pop("ingestion_version")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    chunk_file = next((processed / "documents").glob("*.json"))
+    chunks = json.loads(chunk_file.read_text(encoding="utf-8"))
+    chunks[0]["text"] = "stale chunk from an older parser"
+    chunk_file.write_text(json.dumps(chunks), encoding="utf-8")
+
+    result = sync_corpus(raw, processed, index)
+
+    assert (result.added, result.updated, result.unchanged) == (0, 1, 0)
+    assert "An authoritative rule" in json.loads(chunk_file.read_text(encoding="utf-8"))[0]["text"]

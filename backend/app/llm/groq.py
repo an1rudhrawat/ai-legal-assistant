@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import Sequence
+
 import httpx
 
-from .base import LLMProvider, ProviderError, ProviderRateLimitError
+from .base import ChatMessage, LLMProvider, ProviderError, ProviderRateLimitError
 
 
 class GroqProvider(LLMProvider):
@@ -11,13 +13,20 @@ class GroqProvider(LLMProvider):
         self.model = model
         self.base_url = base_url
 
-    async def generate(self, *, system_prompt: str, user_message: str) -> str:
+    async def generate(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        history: Sequence[ChatMessage] = (),
+    ) -> str:
         if not self.api_key:
             raise ProviderError("GROQ_API_KEY is not configured")
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
+                *[{"role": item["role"], "content": item["content"]} for item in history],
                 {"role": "user", "content": user_message},
             ],
             "temperature": 0.2,

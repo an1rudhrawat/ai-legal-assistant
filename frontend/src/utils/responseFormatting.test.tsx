@@ -16,4 +16,18 @@ describe("response formatting", () => {
   it("removes formatting symbols, citations, and disclaimer before speech", () => {
     expect(speechText(response)).toBe("What to do now Keep your receipt.");
   });
+
+  it("renders mixed paragraphs and numbered steps cleanly and fixes common text encoding artifacts", () => {
+    const mixed = "### Next steps\nStart with the documents below.\n\n1. Keep **your receipt**.\n2. Save the notice.\n\nThe right may continue â€” check the exact source.";
+    render(<FormattedResponse text={mixed} />);
+    expect(screen.getByRole("heading", { name: "Next steps" })).toBeInTheDocument();
+    expect(screen.getByRole("list").tagName).toBe("OL");
+    expect(screen.getByText(/The right may continue — check the exact source\./)).toBeInTheDocument();
+  });
+
+  it("removes a standalone internal source identifier label", () => {
+    render(<FormattedResponse text={"A grounded answer.\n\nSource identifier: [bns-section-35]"} />);
+    expect(screen.getByText("A grounded answer.")).toBeInTheDocument();
+    expect(screen.queryByText(/Source identifier/)).not.toBeInTheDocument();
+  });
 });

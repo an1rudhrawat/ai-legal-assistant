@@ -1,34 +1,99 @@
 # Architecture
 
-## Current semantic first-responder pipeline
+This document describes the implementation as it exists today. Configuration and operating instructions are in the [project guide](project-guide.md).
 
-```text
-User → local semantic domain classifier → situation understanding → query expansion
-→ local dense retrieval + BM25 → reciprocal-rank fusion → optional local cross-encoder
-→ evidence threshold → grounded LLM → citation/output validation → disclaimer
+## System overview
+
+```mermaid
+flowchart LR
+  U[User] --> UI[React chat]
+  UI -->|text / speech transcript| API[FastAPI]
+  API --> C[(SQLite conversations)]
+  API --> G[Scope, urgency, and domain checks]
+  G --> R[Local RAG retrieval]
+  R -->|no relevant evidence| F[Insufficient-evidence response]
+  R -->|retrieved chunks| L[Groq API]
+  L --> V[Citation and response checks]
+  V --> P[Persist completed turn]
+  F --> P
+  P --> UI
+  UI --> S[Browser speech synthesis]
+  D[(data/raw sources)] --> I[Corpus sync and chunking]
+  I --> X[(Local JSON index)]
+  X --> R
 ```
 
-The classifier uses local `all-MiniLM-L6-v2` embeddings and a persisted Logistic Regression model to identify a potentially legal situation without determining an offence. A deterministic gate rejects only obvious unrelated or bypass content. Ambiguous questions may retrieve evidence; if none is available, the system asks for facts instead of inventing a legal scenario. The retriever keeps source/section provenance, combines local dense and BM25 ranks through RRF, and can use an optional local reranker. The LLM provider remains modular; no hosted classification, embedding, or reranking API is used.
+The legal index, retrieval code, and classifier operate locally. Generated answers and long-history summaries use Groq. The browser sends text to the API; it does not send an audio recording. Qwen/Ollama code is isolated in evaluation scripts and is not part of the serving path.
 
-## Legal First Responder retrieval flow
+## Request lifecycle
+
+1. **Conversation lookup.** `POST /api/chat` uses the supplied conversation UUID or creates a new conversation. A reused `request_id` returns the saved result for the same message and rejects a different message.
+2. **Request checks.** A deterministic gate rejects obvious off-topic and override requests. A local semantic classifier labels other requests as legal, non-legal, or ambiguous. Issue and situation extractors add routing and urgency hints; they do not decide legal liability.
+3. **Conversation context.** Recent messages are loaded from SQLite. Earlier user questions help contextualize follow-ups. For questions that refer to the latest assistant reply, that reply can be added to the search query as a bounded, unverified retrieval hint. It is not legal evidence.
+4. **Retrieval.** The query is expanded with issue hints and searched in the local index. Retrieval results below `RETRIEVAL_MINIMUM_RELEVANCE` are discarded. If none remain, the API returns a fixed insufficient-evidence response without calling Groq.
+5. **Grounded generation.** The prompt contains the exact current question, structured situation hints, current retrieved chunks with source metadata, the citation-ID allowlist, and bounded recent history. Prior conversation is unverified context only.
+6. **Output checks.** Citation IDs must belong to retrieved chunks. Deterministic checks reject certain unsupported section and punishment details and a response-scope validator blocks specific categories of off-scope output. These checks are not a complete semantic or legal verifier.
+7. **Persistence and rendering.** The backend adds the standard disclaimer and atomically saves a completed user/assistant turn. The frontend renders the answer, source metadata, urgency state, and errors; optional browser speech synthesis reads the response text.
+
+Immediate-danger matches are handled before retrieval and generation with a short safety-first response. Rate-limit and provider failures return fixed status messages. The in-memory session limiter is a prototype safeguard, not a distributed quota service.
+
+## Retrieval pipeline
 
 ```text
-Input → scope guard → urgency assessment → issue classification → legal retrieval
-→ grounded LLM → citation validation → response validation → disclaimer → user
+Official/local source files → text extraction → section-aware chunks → JSON index
+Question + context hints → BM25 + local term-vector similarity + optional dense search
+→ reciprocal-rank fusion → optional local cross-encoder → relevance cutoff → evidence chunks
 ```
 
-`app.retrieval` ingests authoritative documents into section-preserving chunks and stores complete provenance. It then builds a local term-vector index. The retriever returns chunks, relevance scores, and provenance; a result below the configurable threshold prevents an LLM call. `app.issue_classifier` supplies extensible routing hints, not legal determinations.
+`backend/app/retrieval/corpus.py` tracks source hashes and only reprocesses new or changed files. `ingest.py` extracts PDF, text, Markdown, or JSON content and attaches provenance metadata. `chunker.py` creates section-aware chunks. `index.py` writes the JSON index under `data/vector_store` by default.
 
-The API returns user-facing citations (`source_name`, section, URL, version), without exposing chunk IDs. Browser speech synthesis receives only the answer text. Immediate-danger wording produces a short safety-first response before retrieval.
+At query time, BM25 and the project's normalized term vectors provide lexical matches. When the `all-MiniLM-L6-v2` model is cached locally and dense retrieval is enabled, semantic scores are also used. Rank lists are fused with reciprocal-rank fusion. A cross-encoder reranker is optional and disabled by default. If a local sentence-transformer model is unavailable, the search path logs a warning and uses remaining local signals.
 
-The product is a voice-enabled Indian legal first responder. It accepts both legal terminology and ordinary-language descriptions of plausible legal situations. The guard is deliberately broader than retrieval: it admits a possible legal situation without classifying an offence, while retrieval determines whether authoritative material is available. The browser captures speech when supported, submits only the final text transcript, and speaks the server response using browser synthesis.
+The relevance cutoff means “the retriever found a text match above this setting.” It does not mean “the evidence is legally sufficient.” Conversely, abstention can reflect missing corpus coverage. The index is a local JSON file; there is no remote vector database.
 
-```text
-Microphone → browser SpeechRecognition → transcript → POST /api/chat
-  → deterministic request guard → provider-neutral LLM adapter → deterministic output validator
-  → enforced disclaimer → browser UI → browser SpeechSynthesis
-```
+### Citation and validation boundary
 
-The FastAPI backend is the trust boundary. It owns the legal-domain guard, response validator, session request counter, LLM API key, prompt, and provider adapter. The React client never receives an LLM secret and offers typed input if speech recognition is unavailable.
+Each chunk has a stable chunk ID and source metadata. The model is given the IDs it may cite. Citation validation rejects missing/unknown IDs and checks section references against retrieved material. A narrow deterministic claim check can reject some unsupported punishment amounts. The response-scope validator handles selected off-topic patterns.
 
-`LLMProvider` is the stable integration interface. `GroqProvider` is its first implementation. Future RAG can be added as a retrieval service between the request guard and provider without changing the voice layer or `/api/chat` contract. Phase 1 deliberately contains no retrieval, vector database, persistent database, authentication, or audio storage.
+These checks improve consistency but cannot prove that each legal proposition follows from the cited passage, that a statute is current, or that it applies to a person's facts. Citation presence is not proof of legal correctness. Manual legal review and representative corpus-based evaluation remain necessary.
+
+## Classifier and guards
+
+`ObviousOutOfScopeGate` rejects clear non-legal or instruction-override requests without a provider call. The semantic domain classifier uses local MiniLM embeddings with a Logistic Regression model saved under `data/domain_classifier/model`. Its legal/non-legal probability thresholds are configurable; requests between them are ambiguous. If its model files are unavailable, it conservatively returns ambiguous.
+
+`LegalIssueClassifier` and `SituationUnderstander` use lightweight patterns and extraction to provide retrieval and urgency hints. Neither determines an offence or gives a legal finding. `ResponseScopeValidator` performs deterministic scope checks on model output; it is not semantic fact-checking.
+
+## Conversations and API
+
+The `ConversationStore` persists turns in SQLite and saves each successful pair atomically. The API exposes:
+
+- `GET /health`
+- `POST /api/conversations`
+- `GET /api/conversations/{conversation_id}`
+- `DELETE /api/conversations/{conversation_id}`
+- `POST /api/chat`
+
+Recent history is capped by `CONVERSATION_HISTORY_LIMIT` (default 6 messages, allowed range 2–10). When older turns roll past that window, the service asks the configured provider to summarize earlier **user statements only**. The summary is marked unverified context, not evidence. Conversation contents and relevant context are stored locally, but recent messages, summaries when generated, the current question, and retrieved chunks are sent to Groq for inference.
+
+The API has no authentication or per-user ownership controls. Anyone able to submit a valid conversation ID may access or delete that conversation. The session request counter is also process-local and resets when the backend restarts. These are prototype limitations.
+
+## Provider boundary
+
+`LLMProvider` is the provider interface; `GroqProvider` is the only implementation selected by `create_provider`. `LLM_MODEL`, `GROQ_API_KEY`, and `GROQ_BASE_URL` configure it. There is no Ollama adapter in the application runtime. Local Qwen scripts inject their own benchmark provider and are deliberately separate from production configuration.
+
+## Main code map
+
+| Path | Responsibility |
+| --- | --- |
+| `backend/app/main.py` | FastAPI app, routes, conversation context, request orchestration. |
+| `backend/app/services.py` | Retrieval-to-generation service, grounding and response checks. |
+| `backend/app/prompts.py` | System prompt and grounded message assembly. |
+| `backend/app/conversations.py` | SQLite schema, conversation operations, idempotent turn storage. |
+| `backend/app/llm/` | Provider interface, Groq implementation, and provider factory. |
+| `backend/app/domain_guard/` | Deterministic request gate, semantic domain classifier, response-scope validator. |
+| `backend/app/situation/` and `issue_classifier.py` | Non-adjudicative routing and urgency hints. |
+| `backend/app/retrieval/` | Source sync, ingestion, chunking, local index, search, and evaluation helpers. |
+| `frontend/src/App.tsx` | Chat UI, conversation actions, citations, speech controls. |
+| `frontend/src/services/chat.ts` | Browser API client and request/response types. |
+
+See the [project guide](project-guide.md) for setup, configuration, and commands.

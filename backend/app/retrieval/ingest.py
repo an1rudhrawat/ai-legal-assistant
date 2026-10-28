@@ -17,7 +17,9 @@ def read_source(path: Path) -> tuple[str, dict[str, str | None]]:
         return str(source.pop("text", "")), source
     if path.suffix.lower() == ".pdf":
         from pypdf import PdfReader
-        text = "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
+        # Preserve page boundaries so extraction artefacts (page numbers and
+        # table-of-contents entries) cannot run together with section headings.
+        text = "\n\f\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
         return text, {}
     return path.read_text(encoding="utf-8"), {}
 

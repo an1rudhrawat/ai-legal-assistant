@@ -29,6 +29,45 @@ def test_terminology_query_retrieves_material(tmp_path):
     assert result.chunks[0].chunk_id == "fir-1"
 
 
+def test_explicit_section_query_prioritises_exact_section_metadata(tmp_path):
+    index = make_index(tmp_path)
+    records = json.loads(index.read_text(encoding="utf-8"))
+    unrelated_bns_section = dict(records[0]["chunk"])
+    unrelated_bns_section.update({
+        "chunk_id": "bns-section-173",
+        "document_id": "bns",
+        "document_name": "Bharatiya Nyaya Sanhita, 2023",
+        "act_name": "Bharatiya Nyaya Sanhita, 2023",
+        "section_number": "173",
+        "section_title": "An unrelated provision",
+        "text": "This provision concerns an unrelated criminal offence.",
+    })
+    records.append({"chunk": unrelated_bns_section, "embedding": embed(unrelated_bns_section["text"])})
+    for number in range(60):
+        distractor = dict(records[0]["chunk"])
+        distractor.update({
+            "chunk_id": f"distractor-{number}",
+            "document_id": "other-act",
+            "document_name": "Other Act",
+            "act_name": "Other Act",
+            "section_number": str(number + 1),
+            "section_title": "Unrelated procedural provision",
+            "text": f"A wholly unrelated rule about topic {number}.",
+        })
+        records.append({"chunk": distractor, "embedding": embed(distractor["text"])})
+    index.write_text(json.dumps(records), encoding="utf-8")
+
+    debug = LegalRetriever(index, enable_dense=False).debug_search(
+        "What is the heading of Bharatiya Nyaya Sanhita section 173?", limit=2
+    )
+
+    assert debug.result.chunks[0].chunk_id == "bns-section-173"
+    assert len(debug.result.chunks) == 1
+    assert all(chunk.chunk.section_number == "173" for chunk in debug.retrieved)
+    assert debug.retrieved[0].exact_section_match
+    assert debug.retrieved[0].relevance_score == 1.0
+
+
 def test_irrelevant_query_has_insufficient_evidence(tmp_path):
     result = LegalRetriever(make_index(tmp_path), minimum_relevance=0.2, enable_dense=False).search("pasta recipe ingredients")
     assert not result.sufficient
@@ -50,3 +89,28 @@ def test_rrf_promotes_documents_found_by_multiple_retrievers():
     fused = LegalRetriever._rrf([[0, 1, 2], [1, 0, 3]])
     assert fused[0] > fused[2]
     assert fused[1] > fused[3]
+
+
+def test_reranking_preserves_the_correct_chunk_when_text_is_identical(tmp_path):
+    index = make_index(tmp_path)
+    records = json.loads(index.read_text(encoding="utf-8"))
+    duplicate = dict(records[0]["chunk"])
+    duplicate["chunk_id"] = "fir-duplicate"
+    duplicate["document_id"] = "different-document"
+    duplicate["document_name"] = "Different official source"
+    records.append({"chunk": duplicate, "embedding": records[0]["embedding"]})
+    index.write_text(json.dumps(records), encoding="utf-8")
+
+    retriever = LegalRetriever(index, enable_dense=False)
+    # Model output ordering is represented by the reranker result; it must retain
+    # the original record index rather than recover it from duplicate text.
+    def select_duplicate(_query, candidates):
+        duplicate_candidate = next(candidate for candidate in candidates if candidate[1] == 2)
+        return [duplicate_candidate, *(candidate for candidate in candidates if candidate[1] != 2)]
+
+    retriever.reranker.rerank = select_duplicate
+
+    result = retriever.search("police first information report", limit=1)
+
+    assert result.sufficient
+    assert result.chunks[0].chunk_id == "fir-duplicate"

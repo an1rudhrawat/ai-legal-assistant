@@ -12,6 +12,7 @@ from .ingest import ingest_file
 
 MANIFEST_NAME = ".rag_manifest.json"
 SOURCE_SUFFIXES = {".json", ".pdf", ".txt", ".md"}
+INGESTION_VERSION = "4"
 
 
 @dataclass(frozen=True)
@@ -88,8 +89,8 @@ def sync_corpus(raw_dir: Path, processed_dir: Path, index_path: Path) -> CorpusS
         output_name = hashlib.sha256(relative.encode("utf-8")).hexdigest() + ".json"
         output = documents_dir / output_name
         old = previous.get(relative)
-        current[relative] = {"digest": digest, "chunks_file": output_name}
-        if old and old.get("digest") == digest and output.exists():
+        current[relative] = {"digest": digest, "chunks_file": output_name, "ingestion_version": INGESTION_VERSION}
+        if old and old.get("digest") == digest and old.get("ingestion_version") == INGESTION_VERSION and output.exists():
             unchanged += 1
             continue
         ingest_file(source, metadata, output)

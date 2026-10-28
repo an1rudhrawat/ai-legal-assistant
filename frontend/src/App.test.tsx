@@ -6,24 +6,39 @@ describe("App", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     sessionStorage.clear();
-    vi.stubGlobal("crypto", { randomUUID: () => "browser-test-session" });
+    let id = 0;
+    vi.stubGlobal("crypto", { randomUUID: () => `browser-test-id-${++id}` });
     vi.stubGlobal("speechSynthesis", { cancel: vi.fn(), speak: vi.fn() });
   });
 
   it("renders the persistent disclaimer and typed-input fallback", () => {
     render(<App />);
     expect(screen.getByText(/general legal information, not legal advice/i)).toBeInTheDocument();
-    expect(screen.getByText(/Typed questions remain available/i)).toBeInTheDocument();
+    expect(screen.getByText(/Voice input isn.t available.*still type your question/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /use microphone/i })).toBeDisabled();
   });
 
   it("displays a successful response", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", refused: false, rate_limited: false, citations: [{ source_name: "BNSS", section: "173", source_url: "https://www.indiacode.nic.in/", document_version: "2023" }] }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", conversation_id: "conversation-test", refused: false, rate_limited: false, citations: [{ source_id: "bnss-fir-1", source_name: "BNSS", section: "173", source_url: "https://www.indiacode.nic.in/", document_version: "2023" }] }) }));
     render(<App />);
     fireEvent.change(screen.getByLabelText(/your question/i), { target: { value: "What is an FIR?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(screen.getByText("An FIR is a police record.")).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Sources" })).toBeInTheDocument();
+    expect(screen.getByText("Section 173")).toBeInTheDocument();
+    expect(screen.queryByText(/\[bnss-fir-1\]/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the new turn in the chat and scrolls to the latest content", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "A concise, grounded answer.", conversation_id: "conversation-test", refused: false, rate_limited: false, citations: [] }) }));
+    render(<App />);
+    fireEvent.change(screen.getByLabelText(/your question/i), { target: { value: "What is an FIR?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(screen.getByText("A concise, grounded answer.")).toBeInTheDocument());
+    expect(screen.getByText("What is an FIR?")).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it("enables the microphone control when SpeechRecognition is available", () => {
@@ -39,15 +54,15 @@ describe("App", () => {
   });
 
   it("displays a legal refusal returned by the backend", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "I can only help with Indian legal information.", refused: true, rate_limited: false }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "I can only help with Indian legal information.", conversation_id: "conversation-test", refused: true, rate_limited: false }) }));
     render(<App />);
     fireEvent.change(screen.getByLabelText(/your question/i), { target: { value: "Tell me a joke" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(screen.getByText(/I can only help with Indian legal information/i)).toBeInTheDocument());
   });
 
   it("submits with Enter and keeps Shift+Enter available for a newline", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", refused: false, rate_limited: false }) });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ response: "An FIR is a police record.", conversation_id: "conversation-test", refused: false, rate_limited: false }) });
     vi.stubGlobal("fetch", fetchMock);
     render(<App />);
     const input = screen.getByLabelText(/your question/i);

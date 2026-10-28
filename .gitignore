@@ -26,7 +26,36 @@ data/processed/*
 !data/processed/.gitkeep
 data/vector_store/*
 !data/vector_store/.gitkeep
+data/conversations.sqlite3
+data/conversations.sqlite3-shm
+data/conversations.sqlite3-wal
 
 # Locally trained/downloaded ML artefacts
 data/domain_classifier/model/*
 !data/domain_classifier/model/.gitkeep
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Local Ollama models
+.ollama/
+ollama_models/
+*.gguf
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Generated RAG index and processed data
+data/processed/*
+!data/processed/.gitkeep
+data/vector_store/*
+!data/vector_store/.gitkeep
+
+# Local benchmark results
+backend/evaluation/*_results.json
